@@ -7,18 +7,12 @@ name = "neurocache"
 version = "0.1.0"
 description = "A package for storing and managing LLM queries."
 requires-python = ">=3.11"
-dependencies = ["pymilvus", "pymilvus[model]", "openai"]
-authors = [
-  {name = "Pradyun Gedam", email = "pradyun@example.com"},
-  {name = "Tzu-Ping Chung", email = "tzu-ping@example.com"},
-  {name = "Another person"},
-  {email = "different.person@example.com"},
+dependencies = ["pymilvus", "pymilvus[model]", "openai", "keybert"
 ]
 maintainers = [
   {name = "Kunal Kapur", email = "kunalkapur888@gmail.com"}
 ]
 readme = "README.md"
-license = {file = "LICENSE.txt"}
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python"
@@ -26,5 +20,3 @@ classifiers = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-# my_script = "neurocache.cli:main"
