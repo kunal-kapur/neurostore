@@ -2,3 +2,4 @@
 key.txt
 __pycache__
 src/neurocache.egg-info
+*.db
