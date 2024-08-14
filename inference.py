@@ -7,10 +7,11 @@ from keybert import KeyBERT
 from pymilvus import model
 import torch
 import uuid
-import embedding_models
+import numpy as np
+from embedding_models import Default
 
 
-STRUCTURED_QUERIES = "structured queries"
+STRUCTURED_QUERIES = "structured_queries"
 
 class Neurocache:
 
@@ -19,34 +20,31 @@ class Neurocache:
         self.db = MilvusClient(db_path)
         self.hash = hashlib.sha3_512() # Python 3.6+
         self.key_word_extractor = KeyBERT('distilbert-base-nli-mean-tokens')
-        if not client.has_collection(collection_name=STRUCTURED_QUERIES):
-            self.db.create_collection(STRUCTURED_QUERIES, dimension=768, id_type='str')
-        self.embedding_fn = embedding_models.Default()
+        self.embedding_fn = Default()
+        if not self.db.has_collection(collection_name=STRUCTURED_QUERIES):
+            self.db.create_collection(STRUCTURED_QUERIES, dimension=self.embedding_fn.DIMENSION, id_type='string', max_length=37)
     
-    def find_collection(self, data: torch.tensor) -> any:
-        res = self.db.search(collection_name=STRUCTURED_QUERIES, data=data, limit=1, output_fields=["collection name"])
-        if len(res) == 0 or abs(res[0]['distance']) < 0.2:
-            unique_id = uuid.uuid1()
-            self.db.create_collection(collection_name=unique_id, dimension=self.embedding_fn.DIMENSION, id_type="str")
-            self.db.insert(collection_name=STRUCTURED_QUERIES, data={"collection name": unique_id})
+    def find_collection(self, data: list) -> any:
+        res = self.db.search(collection_name=STRUCTURED_QUERIES, data=[data], limit=1, output_fields=["id"])
+        print(res[0], type(res[0]))
+        if len(res[0]) == 0 or abs(res[0][0]['distance']) < 0.2:
+            unique_id = str(uuid.uuid1())
+            unique_id = "i" + unique_id.replace("-", "_")
+            self.db.create_collection(unique_id, dimension=self.embedding_fn.DIMENSION, id_type="string", max_length=37)
+            self.db.insert(collection_name=STRUCTURED_QUERIES, data=[{"id": unique_id, "vector": data}])
+            print("created", unique_id)
             return unique_id
         
-        return res[0]['entity']['collection name']
+        return res[0][0]['entity']['id']
     
-    def embed_messages(self, messages: dict[str: str]):
-        system_queries = []
-        user_queries = []
+    def embed_messages(self, messages: dict[str: str])->np.array:
+        queries = []
         for entry in messages:
-            if entry.get("role", "") == "system":
-                system_queries.append(entry['content'])
-            if entry.get("role", "") == "user":
-                user_queries.append(entry['content'])
-        structure_key_words, weights = zip(*self.key_word_extractor(".".join(system_queries)))
-        structured_embedding = torch.sum(torch.dot(self.embedding_fn([tup[0] for tup in structure_key_words]), weights))
-
-        user_embedding = self.embedding_fn(user_queries)
-
-        return structured_embedding, user_embedding
+            if entry.get("role", "") in ["system", "user"]:
+                queries.append(entry['content'])
+        structure_key_words, weights = zip(*self.key_word_extractor.extract_keywords(".".join(queries)))
+        embedding = (np.matmul(np.array(self.embedding_fn([tup[0] for tup in structure_key_words])).transpose(), np.array(weights)))
+        return embedding
 
     def query(self, messages: dict[str: str], num_results: int) -> None | dict[any: any]:
         structured_embedding, user_embedding = self.embed_messages(messages=messages)
@@ -64,45 +62,35 @@ class Neurocache:
         return self.db.search(collection_name=res, data=data, limit=num_results, output_fields=["text"])
 
     def create(self, messages: dict[str: str], store:bool=True, **kwargs):
-        structured_embedding, user_embedding = self.embed_messages(messages=messages)
+        embedding = self.embed_messages(messages=messages).tolist()
         # collection that to best put this data into
-        chosen_collection = self.find_collection(embedding=structured_embedding)
-        completion = self.client.chat.completions.create(kwargs, messages=messages)
-        # embed all the responses
-        responses = [choice.message.content for choice in completion]
-        embeddings = [self.embedding_fn(response) for response in responses]
+        chosen_collection = self.find_collection(data=embedding)
+        completion = self.client.chat.completions.create(messages=messages, **kwargs)
+        # # # embed all the responses
+        print(completion.choices[0].message.content)
+        responses = [choice.message.content for choice in completion.choices]
+        print("embedding")
+
+        response_embeddings = self.embedding_fn(responses)
+        print("done embedding")
+        id = "i" + str(uuid.uuid1()).replace("-", "_")
+        print(len((response_embeddings[0])))
         data = [
-            {"id": uuid.uuid1(), "vector": embeddings[i], "text": responses[i], }
+            {"id": id, "vector": response_embeddings[i]}
             for i in range(len(responses))
         ]
         if store == True:
             self.db.insert(collection_name=chosen_collection, data=data)
         return completion
     
-
-client = OpenAI()
-completion = client.chat.completions.create(
-  model="gpt-3.5-turbo-1106",
-  messages=[
+my_message = [
     {"role": "system", "content": "Put something about fish at the beginning of each prompt"},
-    {"role": "system", "content": "Finish every answer with something about pandas."},
-  ],
-  temperature=0.5
-)
+    {"role": "user", "content": "Tell me about kangaroos"}
+  ]
 
-print(completion.choices[0])
+cache = Neurocache()
 
-# with open('out.txt', 'a') as f:
-#     f.write((completion.choices[0].message.content) + "\n")
-
-# completion = client.chat.completions.create(
-#   model="gpt-3.5-turbo-1106",
-#   messages=[
-#     {"role": "user", "content": "What did I say in my last API call?."}
-#   ],
-#   max_tokens=40,
-#   temperature=0.5
-# )
-
-# with open('out.txt', 'a') as f:
-#     f.write((completion.choices[0].message.content) + "\n")
+cache.create(messages=my_message, model="gpt-3.5-turbo-1106", temperature=0.5)
+# finally:
+#     os.remove("vector_cache.db")
+    
