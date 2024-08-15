@@ -7,7 +7,7 @@ name = "neurostore"
 version = "0.1.0"
 description = "A package for storing and managing LLM queries."
 requires-python = ">=3.11"
-dependencies = ["pymilvus", "pymilvus[model]", "openai", "keybert"
+dependencies = ["pymilvus", "pymilvus[model]", "openai", "keybert", "numpy<2"
 ]
 maintainers = [
   {name = "Kunal Kapur", email = "kunalkapur888@gmail.com"}
@@ -19,7 +19,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = ["black>24.1.0", "pytest>=8.0.0", "flake8", "numpy>=2.0.0"]
+dev = ["black>24.1.0", "pytest>=8.0.0", "flake8"]
 
 
 

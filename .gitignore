@@ -3,3 +3,4 @@ key.txt
 __pycache__
 src/neurostore.egg-info
 *.db
+neurostore*
