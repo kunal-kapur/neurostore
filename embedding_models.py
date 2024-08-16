@@ -1,21 +1,23 @@
-from typing import Any, Literal, Mapping
+from typing import Any, Literal, Mapping, Type, Union
 from pymilvus import model
 from abc import abstractmethod
 from openai import OpenAI
 
-
-
-EmbeddingCompletion = Literal["Default", "paraphrase-albert-small-v2", "text-embedding-3-small"] 
+EmbeddingCompletion = Literal["Default", "paraphrase-albert-small-v2", "text-embedding-3-small", "text-embedding-3-large"] 
 
 class EmbeddingModel:
     @property
     @abstractmethod
-    def dimension(self):
+    def dimension(self)->int:
         pass
 
     @property
     @abstractmethod
-    def name(self):
+    def name(self)->str:
+        pass
+
+    @abstractmethod
+    def __call__(self, words: Union[str, list[str]])->Union[list[int], list[list[int]]]:
         pass
 
 
@@ -24,45 +26,45 @@ class AlbertSmalllV2(EmbeddingModel):
         self.embedding_model = model.DefaultEmbeddingFunction()
 
     @property
-    def dimension(self):
+    def dimension(self)->int:
         return 768
     @property
-    def name(self):
+    def name(self)->str:
         return "paraphrase-albert-small-v2"
 
-    def __call__(self, words: list[str]) -> Any:
+    def __call__(self, words: Union[str, list[str]]) -> Any:
         return self.embedding_model(words)
     
 class OpenAI_Small(EmbeddingModel):
     def __init__(self) -> None:
         self.embedding_model = OpenAI()
     @property
-    def dimension(self):
+    def dimension(self)->int:
         return 1536
     @property
-    def name(self):
+    def name(self)->str:
         return "text-embedding-3-small"
 
-    def __call__(self, words: list[str]) -> Any:
-        return self.embedding_model.embeddings.create(input=words, model=self.name)
+    def __call__(self, words: Union[str, list[str]]) -> Any:
+        return self.embedding_model.embeddings.create(input=words, model=self.name).data[0].embedding
     
 class OpenAI_Large(EmbeddingModel):
     def __init__(self) -> None:
         self.embedding_model = OpenAI()
     @property
-    def dimension(self):
+    def dimension(self)->int:
         return 3072
     @property
-    def name(self):
+    def name(self)->str:
         return "text-embedding-3-large"
 
-    def __call__(self, words: list[str]) -> Any:
-        return self.embedding_model.embeddings.create(input=words, model=self.name)
+    def __call__(self, words: Union[str, list[str]]) -> Any:
+        return [self.embedding_model.embeddings.create(input=words, model=self.name).data[0].embedding]
     
 
 
 
-EmbeddingCompletionMapping: Mapping[str, EmbeddingModel] = {
+EmbeddingCompletionMapping: Mapping[str, Type[EmbeddingModel]]= {
     "Default": AlbertSmalllV2,
     "paraphrase-albert-small-v2": AlbertSmalllV2,
     "text-embedding-3-small": OpenAI_Small,

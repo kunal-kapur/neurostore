@@ -1,7 +1,5 @@
 {
-    "database": {
-      "path": "neurostore_folder"
-    },
+    "database_path": "neurostore_folder",
     "api_keys": {
         "OPENAI": "your_api_key_here"
     },

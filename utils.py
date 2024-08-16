@@ -1,4 +1,4 @@
-from typing import Dict, Literal, Union, Any
+from typing import Dict, Literal, Union, Any, List
 import os
 import json
 
@@ -20,7 +20,7 @@ def config_import()->Dict[str, str]:
     return info
 
 
-def combine_queries(messages: Dict[any, any]):
+def combine_queries(messages: List[Dict[str, str]]):
     system_queries = []
     user_queries = []
     for entry in messages:
