@@ -3,7 +3,7 @@ import os
 import json
 
 
-def safe_get(info: Dict[str, Any], default: Any=None, *args: Any) -> Union[Any, None]:
+def safe_get(info: Dict[str, Any], default: Any = None, *args: Any) -> Union[Any, None]:
     for arg in args:
         if isinstance(info, dict) and arg in info:
             info = info[arg]
@@ -12,7 +12,7 @@ def safe_get(info: Dict[str, Any], default: Any=None, *args: Any) -> Union[Any, 
     return info
 
 
-def config_import()->Dict[str, str]:
+def config_import() -> Dict[str, str]:
     if not os.path.exists("neurostore_config.json"):
         return {}
     with open("neurostore_config.json", "r") as f:
@@ -29,5 +29,3 @@ def combine_queries(messages: List[Dict[str, str]]):
         if entry.get("role", "") == "user":
             user_queries.append(entry["content"])
     return system_queries, user_queries
-
-

@@ -1,31 +1,32 @@
 import neurostore
-from pymilvus import MilvusClient # type: ignore
+from pymilvus import MilvusClient  # type: ignore
 from openai import OpenAI
-from keybert import KeyBERT # type: ignore
+from keybert import KeyBERT  # type: ignore
 import uuid
 import numpy as np
-from embedding_models import EmbeddingCompletion, EmbeddingCompletionMapping, EmbeddingModel
+from neurostore.embedding_models import EmbeddingCompletion, EmbeddingCompletionMapping
 import os
 from datetime import date
 import json
 from importlib.metadata import version
 from openai.types.chat.chat_completion import ChatCompletion
-from typing import Dict, List, Union, Any, Type, Iterable
-import utils
+from typing import Dict, List, Union, Any
+import neurostore.utils as utils
 import logging
 
 
 STRUCTURED_QUERIES = "structured_queries"
 NEURO_STORE_PATH = "neurostore"
 
+
 class Neurostore:
 
     def __init__(
         self,
         db_path: str = "./vector_cache.db",
-        embedding_model_query: EmbeddingCompletion="Default",
-        embedding_model_answer: EmbeddingCompletion="Default",
-        api_key: Union[str, None] = None
+        embedding_model_query: EmbeddingCompletion = "Default",
+        embedding_model_answer: EmbeddingCompletion = "Default",
+        api_key: Union[str, None] = None,
     ):
         """_summary_
 
@@ -41,16 +42,19 @@ class Neurostore:
         """
 
         self.client = OpenAI()
-        
+
         config_info = utils.config_import()
 
         if os.environ["OPENAI_API_KEY"] is None and api_key is not None:
             api_key = api_key
-        elif os.environ["OPENAI_API_KEY"] is not None and utils.safe_get(config_info, None, "api_keys", "OpenAI") is not None:
+        elif (
+            os.environ["OPENAI_API_KEY"] is not None
+            and utils.safe_get(config_info, None, "api_keys", "OpenAI") is not None
+        ):
             api_key = utils.safe_get(config_info, None, "api_keys", "OpenAI")
         elif os.environ["OPENAI_API_KEY"] is None:
             raise ValueError("Please add an OpenAI key")
-        
+
         db_path = utils.safe_get(config_info, db_path, "database_path").strip()
         head, tail = os.path.split(db_path)
         print(head, tail)
@@ -64,8 +68,23 @@ class Neurostore:
         info_path = f"{os.path.splitext(new_db_path)[0]}_info.json"
         # create json info for the database
         if not os.path.exists(new_db_path):
-            self.embedding_model_query = EmbeddingCompletionMapping[str(utils.safe_get(config_info, embedding_model_query, "embedding_models", "query"))]()
-            self.embedding_model_answer = EmbeddingCompletionMapping[str(utils.safe_get(config_info, embedding_model_answer, "embedding_models", "answer"))]()
+            self.embedding_model_query = EmbeddingCompletionMapping[
+                str(
+                    utils.safe_get(
+                        config_info, embedding_model_query, "embedding_models", "query"
+                    )
+                )
+            ]()
+            self.embedding_model_answer = EmbeddingCompletionMapping[
+                str(
+                    utils.safe_get(
+                        config_info,
+                        embedding_model_answer,
+                        "embedding_models",
+                        "answer",
+                    )
+                )
+            ]()
             info = {
                 "neurostore version": version("neurostore"),
                 "creation date": date.today().strftime("%m-%d-%Y"),
@@ -74,17 +93,31 @@ class Neurostore:
                 "embedding model answer": self.embedding_model_answer.name,
                 "embedding model answer dimension": self.embedding_model_answer.dimension,
             }
-            with open(info_path, 'w') as f:
+            with open(info_path, "w") as f:
                 json.dump(info, f)
         else:
             logging.log(level=20, msg="Using existing configuration")
 
             if not os.path.exists(info_path):
-                raise UserWarning(f"{info_path} doesn't exist; please write in database")
-            with open(info_path, 'r') as f:
+                raise UserWarning(
+                    f"{info_path} doesn't exist; please write in database"
+                )
+            with open(info_path, "r") as f:
                 set_config = json.load(f)
-            self.embedding_model_query = EmbeddingCompletionMapping[str(utils.safe_get(set_config, embedding_model_query,"embedding model query"))]()
-            self.embedding_model_answer = EmbeddingCompletionMapping[str(utils.safe_get(set_config, embedding_model_answer, "embedding model answer"))]()
+            self.embedding_model_query = EmbeddingCompletionMapping[
+                str(
+                    utils.safe_get(
+                        set_config, embedding_model_query, "embedding model query"
+                    )
+                )
+            ]()
+            self.embedding_model_answer = EmbeddingCompletionMapping[
+                str(
+                    utils.safe_get(
+                        set_config, embedding_model_answer, "embedding model answer"
+                    )
+                )
+            ]()
 
         self.db = MilvusClient(new_db_path)
 
@@ -128,7 +161,9 @@ class Neurostore:
             *self.key_word_extractor.extract_keywords(queries)
         )
 
-        structured_words_embedding = self.embedding_model_query(list(structure_key_words))
+        structured_words_embedding = self.embedding_model_query(
+            list(structure_key_words)
+        )
 
         embedding = np.matmul(
             np.array(
@@ -158,9 +193,7 @@ class Neurostore:
         system_queries, user_queries = utils.combine_queries(messages=messages)
 
         joint_message = ".".join(system_queries) + ".".join(user_queries)
-        embedding = self.embedding_model_query(
-            joint_message
-        )
+        embedding = self.embedding_model_query(joint_message)
         # find a collection to search
         res = self.db.search(
             collection_name=STRUCTURED_QUERIES,
@@ -171,7 +204,7 @@ class Neurostore:
 
         if len(res) == 0:
             raise UserWarning("No entries in the database yet")
-        
+
         answer_embedding = embedding
         if self.embedding_model_answer.name != self.embedding_model_query.name:
             answer_embedding = self.embedding_model_answer(joint_message)
@@ -200,7 +233,9 @@ class Neurostore:
         )
         # collection that to best put this data into
         chosen_collection = self.find_collection(data=embedding)
-        completion = self.client.chat.completions.create(model=model, messages=messages, **kwargs)
+        completion = self.client.chat.completions.create(
+            model=model, messages=messages, **kwargs
+        )
         # embed all the responses
         responses = [choice.message.content for choice in completion.choices]
         response_embeddings = self.embedding_model_answer(responses)
