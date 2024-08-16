@@ -12,7 +12,7 @@ from importlib.metadata import version
 from openai.types.chat.chat_completion import ChatCompletion
 from typing import Dict, List, Union, Any, Type, Iterable
 import utils
-import numpy.typing as npt
+import logging
 
 
 STRUCTURED_QUERIES = "structured_queries"
@@ -22,7 +22,7 @@ class Neurostore:
 
     def __init__(
         self,
-        db_path: str = "vector_cache.db",
+        db_path: str = "./vector_cache.db",
         embedding_model_query: EmbeddingCompletion="Default",
         embedding_model_answer: EmbeddingCompletion="Default",
         api_key: Union[str, None] = None
@@ -30,7 +30,7 @@ class Neurostore:
         """_summary_
 
         Args:
-            db_path (str, optional): Path for where the vector database should be stored. Defaults to "vector_cache.db".
+            db_path (str, optional): Path for where the vector database should be stored. Defaults to "./vector_cache.db".
             embedding_model_query (EmbeddingCompletion, optional): Type of embedding model for queries to choose from. Defaults to "Default".
             embedding_model_answer (EmbeddingCompletion, optional): Type of embedding model for answer to choose from. Defaults to "Default".
             api_key (Union[str, None], optional): The users API key. Defaults to None.
@@ -51,12 +51,15 @@ class Neurostore:
         elif os.environ["OPENAI_API_KEY"] is None:
             raise ValueError("Please add an OpenAI key")
         
+        db_path = utils.safe_get(config_info, db_path, "database_path").strip()
+        head, tail = os.path.split(db_path)
+        print(head, tail)
         # create folder for db and info
-        if not os.path.exists(path=NEURO_STORE_PATH):
-            os.mkdir(NEURO_STORE_PATH)
-        if not db_path.endswith(".db"):
-            db_path += ".db"
-        new_db_path = os.path.join(NEURO_STORE_PATH, db_path)
+        if not os.path.exists(path=head) and len(head) > 0:
+            os.makedirs(head)
+        if not tail.endswith(".db"):
+            tail += ".db"
+        new_db_path = os.path.join(head, tail)
 
         info_path = f"{os.path.splitext(new_db_path)[0]}_info.json"
         # create json info for the database
@@ -74,6 +77,8 @@ class Neurostore:
             with open(info_path, 'w') as f:
                 json.dump(info, f)
         else:
+            logging.log(level=20, msg="Using existing configuration")
+
             if not os.path.exists(info_path):
                 raise UserWarning(f"{info_path} doesn't exist; please write in database")
             with open(info_path, 'r') as f:
@@ -114,7 +119,6 @@ class Neurostore:
                 collection_name=STRUCTURED_QUERIES,
                 data=[{"id": unique_id, "vector": data}],
             )
-            print("created", unique_id)
             return unique_id
 
         return res[0][0]["entity"]["id"]
@@ -123,9 +127,12 @@ class Neurostore:
         structure_key_words, weights = zip(
             *self.key_word_extractor.extract_keywords(queries)
         )
+
+        structured_words_embedding = self.embedding_model_query(list(structure_key_words))
+
         embedding = np.matmul(
             np.array(
-                self.embedding_model_query([tup[0] for tup in structure_key_words]),
+                structured_words_embedding,
                 dtype="float64",
             ).transpose(),
             np.array(weights, dtype="float64"),
@@ -149,13 +156,15 @@ class Neurostore:
         """
 
         system_queries, user_queries = utils.combine_queries(messages=messages)
-        embedding = self.embed_messages(
-            ".".join(system_queries) + ".".join(user_queries)
+
+        joint_message = ".".join(system_queries) + ".".join(user_queries)
+        embedding = self.embedding_model_query(
+            joint_message
         )
         # find a collection to search
         res = self.db.search(
             collection_name=STRUCTURED_QUERIES,
-            data=[embedding],
+            data=embedding,
             limit=1,
             output_fields=["id"],
         )[0]
@@ -163,9 +172,12 @@ class Neurostore:
         if len(res) == 0:
             raise UserWarning("No entries in the database yet")
         
+        answer_embedding = embedding
+        if self.embedding_model_answer.name != self.embedding_model_query.name:
+            answer_embedding = self.embedding_model_answer(joint_message)
         return self.db.search(
             collection_name=res[0]["id"],
-            data=[embedding],
+            data=answer_embedding,
             limit=num_results,
             output_fields=["system_query", "user_query", "response"],
         )
@@ -207,19 +219,3 @@ class Neurostore:
         if store == True:
             self.db.insert(collection_name=chosen_collection, data=data)
         return completion
-
-
-my_message = [
-    {
-        "role": "system",
-        "content": "Put something about fish at the beginning of each prompt",
-    },
-    {"role": "user", "content": "Tell me about birds"},
-]
-
-cache = Neurostore()
-
-cache.create(messages=my_message, model="gpt-3.5-turbo-1106", temperature=0.5)
-print(cache.query(messages=my_message, num_results=2))
-# finally:
-#     os.remove("vector_cache.db")

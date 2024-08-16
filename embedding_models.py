@@ -1,4 +1,4 @@
-from typing import Any, Literal, Mapping, Type, Union
+from typing import Any, Literal, Mapping, Type, Union, List
 from pymilvus import model
 from abc import abstractmethod
 from openai import OpenAI
@@ -17,7 +17,7 @@ class EmbeddingModel:
         pass
 
     @abstractmethod
-    def __call__(self, words: Union[str, list[str]])->Union[list[int], list[list[int]]]:
+    def __call__(self, words: Union[str, List[str]])->List[List[float]]:
         pass
 
 
@@ -32,8 +32,8 @@ class AlbertSmalllV2(EmbeddingModel):
     def name(self)->str:
         return "paraphrase-albert-small-v2"
 
-    def __call__(self, words: Union[str, list[str]]) -> Any:
-        return self.embedding_model(words)
+    def __call__(self, words: Union[str, List[str]]) -> List[List[float]]:
+        return self.embedding_model.encode_documents(words)
     
 class OpenAI_Small(EmbeddingModel):
     def __init__(self) -> None:
@@ -45,8 +45,12 @@ class OpenAI_Small(EmbeddingModel):
     def name(self)->str:
         return "text-embedding-3-small"
 
-    def __call__(self, words: Union[str, list[str]]) -> Any:
-        return self.embedding_model.embeddings.create(input=words, model=self.name).data[0].embedding
+    def __call__(self, words: Union[str, List[str]]) -> List[List[float]]:
+        print(words)
+        if isinstance(words, str):
+            return [self.embedding_model.embeddings.create(input=words, model=self.name).data[0].embedding]
+
+        return [result.embedding for result in self.embedding_model.embeddings.create(input=words, model=self.name).data]
     
 class OpenAI_Large(EmbeddingModel):
     def __init__(self) -> None:
@@ -58,8 +62,8 @@ class OpenAI_Large(EmbeddingModel):
     def name(self)->str:
         return "text-embedding-3-large"
 
-    def __call__(self, words: Union[str, list[str]]) -> Any:
-        return [self.embedding_model.embeddings.create(input=words, model=self.name).data[0].embedding]
+    def __call__(self, words: Union[str, List[str]]) -> List[List[float]]:
+       return [result.embedding for result in self.embedding_model.embeddings.create(input=words, model=self.name).data]
     
 
 
