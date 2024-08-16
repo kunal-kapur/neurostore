@@ -57,7 +57,6 @@ class Neurostore:
 
         db_path = utils.safe_get(config_info, db_path, "database_path").strip()
         head, tail = os.path.split(db_path)
-        print(head, tail)
         # create folder for db and info
         if not os.path.exists(path=head) and len(head) > 0:
             os.makedirs(head)
