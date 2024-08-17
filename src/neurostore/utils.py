@@ -3,7 +3,7 @@ import os
 import json
 
 
-def safe_get(info: Dict[str, Any], default: Any = None, *args: Any) -> Union[Any, None]:
+def safe_get(info: Dict[str, Any], default: Any = None, *args: Any) -> Any:
     for arg in args:
         if isinstance(info, dict) and arg in info:
             info = info[arg]

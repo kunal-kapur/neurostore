@@ -1,10 +1,10 @@
 {
-    "database_path": "neurostore/neurostore.db",
+    "database_path": "neurostore_config/neurostore.db",
     "api_keys": {
         "OPENAI": "your_api_key_here"
     },
     "embedding_models": {
       "query": "Default",
-      "answer": "Default"
+      "answer": "text-embedding-3-small"
     }
 }
