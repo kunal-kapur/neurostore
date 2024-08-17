@@ -27,8 +27,9 @@ class EmbeddingModel:
         pass
 
 
-class AlbertSmalllV2(EmbeddingModel):
+class AlbertSmallV2(EmbeddingModel):
     def __init__(self) -> None:
+        """AlmbertSmall model; embedding size of 768."""
         self.embedding_model = model.DefaultEmbeddingFunction()
 
     @property
@@ -44,6 +45,8 @@ class AlbertSmalllV2(EmbeddingModel):
 
 
 class OpenAI_Small(EmbeddingModel):
+    """OpenAI small embedding model; embedding size of 1536."""
+
     def __init__(self) -> None:
         self.embedding_model = OpenAI()
 
@@ -73,6 +76,8 @@ class OpenAI_Small(EmbeddingModel):
 
 
 class OpenAI_Large(EmbeddingModel):
+    """OpenAI large embedding model; embedding size of 3072."""
+
     def __init__(self) -> None:
         self.embedding_model = OpenAI()
 
@@ -94,8 +99,8 @@ class OpenAI_Large(EmbeddingModel):
 
 
 EmbeddingCompletionMapping: Mapping[str, Type[EmbeddingModel]] = {
-    "Default": AlbertSmalllV2,
-    "paraphrase-albert-small-v2": AlbertSmalllV2,
+    "Default": AlbertSmallV2,
+    "paraphrase-albert-small-v2": AlbertSmallV2,
     "text-embedding-3-small": OpenAI_Small,
     "text-embedding-3-large": OpenAI_Large,
 }
