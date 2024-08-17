@@ -37,14 +37,10 @@ class Neurocache:
         
         return res[0][0]['entity']['id']
     
-    def embed_messages(self, messages: dict[str: str])->np.array:
-        queries = []
-        for entry in messages:
-            if entry.get("role", "") in ["system", "user"]:
-                queries.append(entry['content'])
-        structure_key_words, weights = zip(*self.key_word_extractor.extract_keywords(".".join(queries)))
+    def embed_messages(self, queries: str)->np.array:
+        structure_key_words, weights = zip(*self.key_word_extractor.extract_keywords(queries))
         embedding = (np.matmul(np.array(self.embedding_fn([tup[0] for tup in structure_key_words])).transpose(), np.array(weights)))
-        return embedding
+        return embedding.tolist()
 
     def query(self, messages: dict[str: str], num_results: int) -> None | dict[any: any]:
         structured_embedding, user_embedding = self.embed_messages(messages=messages)
@@ -62,7 +58,16 @@ class Neurocache:
         return self.db.search(collection_name=res, data=data, limit=num_results, output_fields=["text"])
 
     def create(self, messages: dict[str: str], store:bool=True, **kwargs):
-        embedding = self.embed_messages(messages=messages).tolist()
+        
+        system_queries = []
+        user_queries = []
+        for entry in messages:
+            if entry.get("role", "") == "system":
+                system_queries.append(entry['content'])
+            if entry.get("role", "") == "user":
+                user_queries.append(entry['content'])
+        system_queries, user_queries = ".".join(system_queries), ".".join(user_queries)
+        embedding = self.embed_messages(system_queries + user_queries)
         # collection that to best put this data into
         chosen_collection = self.find_collection(data=embedding)
         completion = self.client.chat.completions.create(messages=messages, **kwargs)
@@ -76,7 +81,7 @@ class Neurocache:
         id = "i" + str(uuid.uuid1()).replace("-", "_")
         print(len((response_embeddings[0])))
         data = [
-            {"id": id, "vector": response_embeddings[i]}
+            {"id": id, "vector": response_embeddings[i], "system query": system_queries, "user query": user_queries}
             for i in range(len(responses))
         ]
         if store == True:
@@ -85,7 +90,7 @@ class Neurocache:
     
 my_message = [
     {"role": "system", "content": "Put something about fish at the beginning of each prompt"},
-    {"role": "user", "content": "Tell me about kangaroos"}
+    {"role": "user", "content": "Tell me about birds"}
   ]
 
 cache = Neurocache()
