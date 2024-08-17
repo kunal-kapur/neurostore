@@ -4,6 +4,7 @@ from pymilvus import model
 class Default:
     def __init__(self) -> None:
         self.DIMENSION= 768
+        self.NAME = "paraphrase-albert-small-v2"
         self.embedding_model =  model.DefaultEmbeddingFunction()
     def __call__(self, words: list[str]) -> Any:
         return self.embedding_model(words)
