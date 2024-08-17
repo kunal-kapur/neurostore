@@ -15,7 +15,7 @@ import utils
 
 
 STRUCTURED_QUERIES = "structured_queries"
-NEURO_CACHE_PATH = "neurostore"
+NEURO_STORE_PATH = "neurostore"
 
 class Neurostore:
 
@@ -26,30 +26,44 @@ class Neurostore:
         embedding_model_answer: EmbeddingCompletion="Default",
         api_key: Union[str, None] = None
     ):
+        """_summary_
 
-        if os.environ["OPENAI_API_KEY"] is not None and api_key is not None:
-            api_key = api_key
+        Args:
+            db_path (str, optional): Path for where the vector database should be stored. Defaults to "vector_cache.db".
+            embedding_model_query (EmbeddingCompletion, optional): Type of embedding model for queries to choose from. Defaults to "Default".
+            embedding_model_answer (EmbeddingCompletion, optional): Type of embedding model for answer to choose from. Defaults to "Default".
+            api_key (Union[str, None], optional): The users API key. Defaults to None.
 
-        elif os.environ["OPENAI_API_KEY"] is None:
-            raise ValueError("Please add an OpenAI key")
+        Raises:
+            ValueError: If there is no API key that is found in environment variables or configuration file
+            UserWarning: If the original data file doesn't exist for the database
+        """
 
         self.client = OpenAI()
 
-        config_info = utils.config_import()
+        if os.environ["OPENAI_API_KEY"] is None and api_key is not None:
+            api_key = api_key
+        elif os.environ["OPENAI_API_KEY"] is not None and utils.safe_get(config_info, None, "api_keys", "OpenAI") is not None:
+            api_key = utils.safe_get(config_info, None, "api_keys", "OpenAI")
+        elif os.environ["OPENAI_API_KEY"] is None:
+            raise ValueError("Please add an OpenAI key")
         
-        self.embedding_model_query = EmbeddingCompletionMapping[utils.safe_get(config_info, embedding_model_query, "embedding_models", "query")]()
-        self.embedding_model_answer = EmbeddingCompletionMapping[utils.safe_get(config_info, embedding_model_answer, "embedding_models", "answer")]()
+        config_info = utils.config_import()
 
+        self.embedding_model_query, self.embedding_model_answer = None, None
+        
         # create folder for db and info
-        if not os.path.exists(path=NEURO_CACHE_PATH):
-            os.mkdir(NEURO_CACHE_PATH)
+        if not os.path.exists(path=NEURO_STORE_PATH):
+            os.mkdir(NEURO_STORE_PATH)
         if not db_path.endswith(".db"):
             db_path += ".db"
-        new_db_path = os.path.join(NEURO_CACHE_PATH, db_path)
+        new_db_path = os.path.join(NEURO_STORE_PATH, db_path)
 
+        info_path = f"{os.path.splitext(new_db_path)[0]}_info.json"
         # create json info for the database
-        print(self.embedding_model_query.name)
         if not os.path.exists(new_db_path):
+            self.embedding_model_query = EmbeddingCompletionMapping[utils.safe_get(config_info, embedding_model_query, "embedding_models", "query")]()
+            self.embedding_model_answer = EmbeddingCompletionMapping[utils.safe_get(config_info, embedding_model_answer, "embedding_models", "answer")]()
             info = {
                 "neurostore version": version("neurostore"),
                 "creation date": date.today().strftime("%m-%d-%Y"),
@@ -58,8 +72,15 @@ class Neurostore:
                 "embedding model answer": self.embedding_model_answer.name,
                 "embedding model answer dimension": self.embedding_model_answer.dimension,
             }
-            with open(f"{os.path.splitext(new_db_path)[0]}_info.json", "w") as f:
+            with open(info_path) as f:
                 json.dump(info, f)
+        else:
+            if not os.path.exists(info_path):
+                raise UserWarning(f"{info_path} doesn't exist; please write in database")
+            set_config = json.load(info_path)
+            self.embedding_model_query = EmbeddingCompletionMapping[utils.safe_get(set_config, embedding_model_query,"embedding model query")]()
+            self.embedding_model_answer = EmbeddingCompletionMapping[utils.safe_get(set_config, embedding_model_answer, "embedding model answer")]()
+
         self.db = MilvusClient(new_db_path)
 
         self.key_word_extractor = KeyBERT("distilbert-base-nli-mean-tokens")
@@ -197,9 +218,6 @@ my_message = [
 ]
 
 cache = Neurostore()
-
-# client = OpenAI()
-# client.chat.completions.create(model="")
 
 cache.create(messages=my_message, model="gpt-3.5-turbo-1106", temperature=0.5)
 print(cache.query(messages=my_message, num_results=2))
