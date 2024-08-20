@@ -1,5 +1,6 @@
 import pytest
 from neurostore import utils
+import os
 
 
 def test_safe_get():
@@ -20,8 +21,8 @@ def test_safe_get_complex():
     assert res3 == 0
 
 
-@pytest.mark.parametrize("change_dir", ["data"], indirect=True)
 def test_safe_config_import(change_dir, monkeypatch):
+    os.chdir("data")
     expected = {
         "database_path": "neurostore_config/neurostore.db",
         "api_keys": {"OPENAI": "your_api_key_here"},
