@@ -40,7 +40,6 @@ class Neurostore:
             ValueError: If there is no API key that is found in environment variables or configuration file
             UserWarning: If the original data file doesn't exist for the database
         """
-
         self.client = OpenAI()
 
         config_info = utils.config_import()
@@ -119,6 +118,7 @@ class Neurostore:
             ]()
 
         self.db = MilvusClient(new_db_path)
+        self.db_path = new_db_path
 
         self.key_word_extractor = KeyBERT("distilbert-base-nli-mean-tokens")
 
@@ -174,7 +174,7 @@ class Neurostore:
         return embedding.tolist()
 
     def query(
-        self, messages: List[Dict[str, str]], num_results: int
+        self, messages: List[Dict[str, str]], num_results: int = 1
     ) -> List[List[dict]]:
         """Create an API call to the OpenAI API and optionally store it.
 
@@ -207,6 +207,7 @@ class Neurostore:
         answer_embedding = embedding
         if self.embedding_model_answer.name != self.embedding_model_query.name:
             answer_embedding = self.embedding_model_answer(joint_message)
+
         return self.db.search(
             collection_name=res[0]["id"],
             data=answer_embedding,
