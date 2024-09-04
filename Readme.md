@@ -17,7 +17,7 @@ pip install neurostore
 #### Store an run as you would normally 
 Query your desired LLM as you normally would
 ```python
-
+from neurostore import Neurostore
 cache = Neurostore()
 my_message = [
     {
