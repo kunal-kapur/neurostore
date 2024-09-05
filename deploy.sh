@@ -30,3 +30,6 @@ python3 -m build --wheel .
 
 twine upload dist/neurostore-${new_version}.tar.gz dist/neurostore-${new_version}-py3-none-any.whl
 git tag $new_version
+git add VERSION
+git commit -m "Bump version to ${new_version}"
+git push --follow-tags
